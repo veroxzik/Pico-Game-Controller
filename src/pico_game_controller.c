@@ -34,7 +34,8 @@ uint64_t sw_timestamp[SW_GPIO_SIZE];
 
 bool kbm_report;
 
-uint64_t reactive_timeout_timestamp;
+uint64_t reactive_button_timeout_timestamp;
+uint64_t reactive_rgb_timeout_timestamp;
 
 void (*ws2812b_mode)();
 void (*loop_mode)();
@@ -54,7 +55,7 @@ union {
  * @param counter Current number of WS2812B cycles
  **/
 void ws2812b_update(uint32_t counter) {
-  if (time_us_64() - reactive_timeout_timestamp >= REACTIVE_TIMEOUT_MAX) {
+  if (time_us_64() - reactive_rgb_timeout_timestamp >= REACTIVE_TIMEOUT_MAX) {
     ws2812b_mode(counter);
   } else {
     for (int i = 0; i < WS2812B_LED_ZONES; i++) {
@@ -72,7 +73,7 @@ void ws2812b_update(uint32_t counter) {
  **/
 void update_lights() {
   for (int i = 0; i < LED_GPIO_SIZE; i++) {
-    if (time_us_64() - reactive_timeout_timestamp >= REACTIVE_TIMEOUT_MAX) {
+    if (time_us_64() - reactive_button_timeout_timestamp >= REACTIVE_TIMEOUT_MAX) {
       if (!gpio_get(SW_GPIO[i])) {
         gpio_put(LED_GPIO[i], 1);
       } else {
@@ -231,7 +232,8 @@ void init() {
     dma_channel_set_irq0_enabled(i, true);
   }
 
-  reactive_timeout_timestamp = time_us_64();
+  reactive_button_timeout_timestamp = time_us_64();
+  reactive_rgb_timeout_timestamp = time_us_64();
 
   // Set up WS2812B
   pio_1 = pio1;
@@ -331,6 +333,12 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
     for (i; i < sizeof(lights_report); i++) {
       lights_report.raw[i] = buffer[i];
     }
-    reactive_timeout_timestamp = time_us_64();
+    reactive_button_timeout_timestamp = time_us_64();
+    for (i = LED_GPIO_SIZE; i < (WS2812B_LED_ZONES * 3); i++) {
+      if (lights_report.raw[i] > 0) {
+        reactive_rgb_timeout_timestamp = time_us_64();
+        break;
+      }
+    }
   }
 }
